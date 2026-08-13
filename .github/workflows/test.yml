@@ -1,0 +1,34 @@
+name: Test build-plan logic
+
+# The version -> JDK / ant-flags / base-image / tag mapping and ref-resolution
+# logic behind build-cassandra-ref.yml are pure, sourceable shell functions
+# (see .github/cassandra-image/resolve-build-plan.sh and resolve-ref.sh) with
+# no network or Docker dependency, so they're unit-tested directly here rather
+# than via a full workflow run.
+
+on:
+  pull_request:
+    paths:
+      - '.github/cassandra-image/**'
+      - '.github/workflows/test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/cassandra-image/**'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  test-build-plan:
+    name: Test build-plan and ref-resolution logic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Run build-plan unit tests
+        run: bash .github/cassandra-image/resolve-build-plan.test.sh
+
+      - name: Run ref-resolution unit tests
+        run: bash .github/cassandra-image/resolve-ref.test.sh
