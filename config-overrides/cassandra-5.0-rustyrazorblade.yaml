@@ -3,10 +3,11 @@
 # config-overrides/README.md for the mechanism. Only listed keys change;
 # everything else stays exactly as the branch ships it.
 #
-# Based on a cassandra-expert review of this branch's default cassandra.yaml
-# (2026-08-14). Deliberately excludes: fork-specific disk-access-mode/
-# auto_repair knobs (unproven, meant to stay opt-in rather than a shipped
-# default) and file_cache_enabled (needs benchmarking first).
+# Based on cassandra-expert review of this branch's default cassandra.yaml
+# (2026-08-14), plus owner's-call additions. Deliberately excludes: the
+# fork-specific auto_repair scheduler block (unproven, meant to stay opt-in
+# rather than a shipped default) and file_cache_enabled (needs benchmarking
+# first).
 
 # Nothing upgrades from 4.x into a fresh image built by this pipeline. NONE
 # unlocks BTI, the newer commitlog/hints/sstable versions, and extended TTL
@@ -70,3 +71,17 @@ auto_snapshot_ttl: 30d
 
 # Cheap early warning on pathological queries (CASSANDRA-16850).
 read_thresholds_enabled: true
+
+# Lower-variance choice than the upstream default of 16 for clusters that are
+# consistently RF3, single-DC (owner's call, not a general recommendation).
+num_tokens: 4
+
+# Direct I/O for compaction reads/background writes, bypassing the OS page
+# cache — keeps compaction from evicting the read-hot working set out of page
+# cache. Fork-specific knobs (not upstream); owner's call to enable them.
+compaction_read_disk_access_mode: direct
+background_write_disk_access_mode: direct
+# Per-concurrent-writer off-heap buffer for background_write_disk_access_mode:
+# direct — total off-heap usage scales with concurrency (compaction threads,
+# streaming sessions, etc). 1MiB matches the upstream default.
+direct_write_buffer_size: 1MiB
