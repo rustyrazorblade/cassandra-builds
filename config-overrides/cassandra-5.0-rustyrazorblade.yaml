@@ -19,13 +19,15 @@ storage_compatibility_mode: NONE
 commitlog_disk_access_mode: auto
 
 # UCS is the 5.0-native compaction strategy spanning the STCS/LCS spectrum via
-# scaling_parameters — left at its own defaults (T4, 1GiB target). `parameters`
-# must be present (even empty) — omitting it leaves default_compaction.parameters
-# null, which NPEs during static init (java.util.Map.containsKey on null) before
-# Cassandra ever opens the native transport.
+# scaling_parameters. L10 (logarithmic, base 10) rather than the tiered T4
+# default. `parameters` must be present — omitting it entirely leaves
+# default_compaction.parameters null, which NPEs during static init
+# (java.util.Map.containsKey on null) before Cassandra ever opens the native
+# transport.
 default_compaction:
   class_name: UnifiedCompactionStrategy
-  parameters: {}
+  parameters:
+    scaling_parameters: L10
 
 # Trie-indexed SSTable format: smaller indexes, better large-partition
 # lookups, no key-cache dependence. Requires storage_compatibility_mode: NONE
