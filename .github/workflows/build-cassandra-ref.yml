@@ -201,6 +201,34 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ needs.resolve.outputs.build_jdk }}
 
+      - name: Check out this repo's config overrides
+        uses: actions/checkout@v7
+        with:
+          path: cb
+          sparse-checkout: |
+            .github/cassandra-image
+            config-overrides
+          fetch-depth: 1
+
+      # Optional, per-branch cassandra.yaml tuning — see config-overrides/README.md.
+      # Applied here, before `ant artifacts` packages the tarball, so BOTH build
+      # artifacts pick it up from a single merge: the tarball directly, and the
+      # GHCR image for free (its Dockerfile just extracts the tarball's conf/).
+      - name: Apply config override (optional)
+        env:
+          REF_TAG: ${{ needs.resolve.outputs.ref_tag }}
+        run: |
+          set -euo pipefail
+          override="cb/config-overrides/${REF_TAG}.yaml"
+          if [[ -f "$override" ]]; then
+            echo "Applying config override: $override"
+            # shellcheck source=.github/cassandra-image/merge-config-override.sh
+            source cb/.github/cassandra-image/merge-config-override.sh
+            merge_config_override "$override" conf/cassandra.yaml
+          else
+            echo "No config override for ref_tag=${REF_TAG}; using upstream defaults."
+          fi
+
       - name: Build artifacts with ant
         env:
           # Version-specific ant flags from the resolve job. For 4.0/4.1 this is

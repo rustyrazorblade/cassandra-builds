@@ -1,0 +1,66 @@
+# Tuned defaults for the cassandra-5.0-rustyrazorblade base image/tarball.
+# Deep-merged onto the branch's default conf/cassandra.yaml — see
+# config-overrides/README.md for the mechanism. Only listed keys change;
+# everything else stays exactly as the branch ships it.
+#
+# Based on a cassandra-expert review of this branch's default cassandra.yaml
+# (2026-08-14). Deliberately excludes: fork-specific disk-access-mode/
+# auto_repair knobs (unproven, meant to stay opt-in rather than a shipped
+# default) and file_cache_enabled (needs benchmarking first).
+
+# Nothing upgrades from 4.x into a fresh image built by this pipeline. NONE
+# unlocks BTI, the newer commitlog/hints/sstable versions, and extended TTL
+# support (default CASSANDRA_4 exists only for rolling-upgrade compatibility).
+storage_compatibility_mode: NONE
+
+# storage_compatibility_mode: NONE changes what "auto" resolves to here; this
+# key is otherwise pinned to the 4.x-compatible "legacy" value and must be
+# changed explicitly alongside it.
+commitlog_disk_access_mode: auto
+
+# UCS is the 5.0-native compaction strategy spanning the STCS/LCS spectrum via
+# scaling_parameters — left at its own defaults (T4, 1GiB target).
+default_compaction:
+  class_name: UnifiedCompactionStrategy
+
+# Trie-indexed SSTable format: smaller indexes, better large-partition
+# lookups, no key-cache dependence. Requires storage_compatibility_mode: NONE
+# (set above).
+sstable:
+  selected_format: bti
+
+# Trie memtable moves metadata off-heap and sustains higher write throughput
+# than the default skiplist memtable. Worse under very skewed partition access
+# or with legacy 2i — acceptable trade-off for a general-purpose base image.
+memtable:
+  configurations:
+    default:
+      inherits: trie
+
+# Moves cell data off-heap too, cutting GC pressure and letting memtables hold
+# more before flush.
+memtable_allocation_type: offheap_objects
+
+# The 64MiB/s default is a spinning-disk-era number. UCS runs more, smaller
+# compactions and falls behind on NVMe at the old rate.
+compaction_throughput: 128MiB/s
+
+# Disabled by default only for downgrade safety to pre-4.1 clusters, which
+# doesn't apply to a fresh image. Avoids generation-id collisions on
+# stream/refresh.
+uuid_sstable_identifiers_enabled: true
+
+# SimpleSnitch can't express racks or DCs, so any multi-node provisioning has
+# to change this anyway.
+endpoint_snitch: GossipingPropertyFileSnitch
+
+# Avoids large fsync stalls when the page cache flushes sequential writes in
+# bulk. Standard recommendation on SSD/NVMe.
+trickle_fsync: true
+
+# Keeps auto_snapshot's truncate/drop protection without letting snapshots
+# from dropped/truncated tables accumulate forever on lab disks.
+auto_snapshot_ttl: 30d
+
+# Cheap early warning on pathological queries (CASSANDRA-16850).
+read_thresholds_enabled: true

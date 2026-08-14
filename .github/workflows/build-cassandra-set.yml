@@ -60,6 +60,9 @@ jobs:
           - repo: rustyrazorblade/cassandra
             ref: cassandra-6.0-rustyrazorblade
             version: "6.0-rustyrazorblade-HEAD"
+          - repo: rustyrazorblade/cassandra
+            ref: cassandra-5.0-rustyrazorblade
+            version: "5.0-rustyrazorblade-HEAD"
     uses: ./.github/workflows/build-cassandra-ref.yml
     with:
       repo: ${{ matrix.repo }}
@@ -141,6 +144,7 @@ jobs:
             - **6.0-HEAD**: Latest from `cassandra-6.0` branch (apache/cassandra)
             - **trunk**: Latest from `trunk` branch (apache/cassandra)
             - **6.0-rustyrazorblade-HEAD**: Latest from `cassandra-6.0-rustyrazorblade` branch (rustyrazorblade/cassandra fork)
+            - **5.0-rustyrazorblade-HEAD**: Latest from `cassandra-5.0-rustyrazorblade` branch (rustyrazorblade/cassandra fork)
 
             ### Stable Download URLs
 
@@ -151,6 +155,7 @@ jobs:
             https://github.com/${{ github.repository }}/releases/download/nightly/apache-cassandra-6.0-HEAD-bin.tar.gz
             https://github.com/${{ github.repository }}/releases/download/nightly/apache-cassandra-trunk-bin.tar.gz
             https://github.com/${{ github.repository }}/releases/download/nightly/apache-cassandra-6.0-rustyrazorblade-HEAD-bin.tar.gz
+            https://github.com/${{ github.repository }}/releases/download/nightly/apache-cassandra-5.0-rustyrazorblade-HEAD-bin.tar.gz
             ```
 
             ### Build Information

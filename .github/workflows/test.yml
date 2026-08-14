@@ -32,3 +32,6 @@ jobs:
 
       - name: Run ref-resolution unit tests
         run: bash .github/cassandra-image/resolve-ref.test.sh
+
+      - name: Run config-override merge unit tests
+        run: bash .github/cassandra-image/merge-config-override.test.sh

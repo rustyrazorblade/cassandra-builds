@@ -33,6 +33,7 @@ Two workflows:
 | `6.0-HEAD` | `apache/cassandra` | `cassandra-6.0` |
 | `trunk` | `apache/cassandra` | `trunk` |
 | `6.0-rustyrazorblade-HEAD` | `rustyrazorblade/cassandra` | `cassandra-6.0-rustyrazorblade` |
+| `5.0-rustyrazorblade-HEAD` | `rustyrazorblade/cassandra` | `cassandra-5.0-rustyrazorblade` |
 
 ## Adding a new branch to the nightly matrix
 
@@ -51,6 +52,18 @@ discoverability.
 
 That's it — the next scheduled (or manually triggered) run picks it up. No
 other files need to change.
+
+## Config overrides (optional)
+
+Drop a `<ref_tag>.yaml` file in [`config-overrides/`](config-overrides/) to
+tune `cassandra.yaml` defaults for a specific branch — e.g.
+`config-overrides/cassandra-5.0-rustyrazorblade.yaml`. It's deep-merged onto
+the branch's default `conf/cassandra.yaml` before packaging, so both the
+tarball and the GHCR image (which just extracts the tarball's `conf/`) pick up
+the same tuned defaults. No file for a ref = no override, everything else
+about that branch's default config is untouched. See
+[`config-overrides/README.md`](config-overrides/README.md) for the merge
+mechanics.
 
 ## Triggering a one-off build for any ref
 
