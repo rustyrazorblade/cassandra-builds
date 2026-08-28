@@ -83,12 +83,18 @@ branch needs something different than its version normally maps to.
 ## Where artifacts land
 
 - **GHCR image**: `ghcr.io/rustyrazorblade/cassandra-builds/cassandra`, tagged
-  with an immutable `sha-<short>` tag, a moving sanitized-ref tag, and (for
-  matrix builds) a stable version-label tag (`5.0-HEAD`, `6.0-HEAD`, etc.).
-  `latest` is never produced.
-- **Per-build tarball release**: `apache-cassandra-<version>-<short-sha>-bin.tar.gz`,
-  attached to a GitHub release tagged `cassandra-<version>-<short-sha>`. One
-  release per build, additive, pruned manually.
+  with a moving sanitized-ref tag and (for matrix builds) a stable
+  version-label tag (`5.0-HEAD`, `6.0-HEAD`, etc.). The build also applies an
+  immutable `sha-<short>` tag locally, so the smoke test has a concrete image
+  to run, but that tag is never pushed. `latest` is never produced.
+- **Per-ref tarball release**: `apache-cassandra-<version>-<short-sha>-bin.tar.gz`,
+  attached to a GitHub release tagged after the ref itself (e.g.
+  `cassandra-6.0-rustyrazorblade`). One release per ref, deleted and recreated
+  on every run, so builds never accumulate tags.
+
+  The release tag is stable, but the asset filename still embeds the short
+  SHA. The full download URL therefore changes on every build. Do not pin it.
+  Pin a `nightly` URL instead.
 - **Nightly release**: the matrix's aggregation job republishes every
   tracked branch's tarball under a stable name onto the single moving
   `nightly` release (deleted and recreated every run), giving URLs that never
@@ -100,17 +106,21 @@ branch needs something different than its version normally maps to.
 
 ## Consuming from easy-db-lab
 
-Pin a tarball URL in `packer/cassandra/cassandra_versions.yaml`:
+For a nightly-tracked branch, pin the stable `nightly` URL in
+`packer/cassandra/cassandra_versions.yaml`. It always resolves to the latest
+build, and you never edit the pin:
 
 ```yaml
-- version: "my-branch"
-  url: https://github.com/rustyrazorblade/cassandra-builds/releases/download/cassandra-<version>-<short-sha>/apache-cassandra-<version>-<short-sha>-bin.tar.gz
-  java: "21"
+- version: "5.0-HEAD"
+  url: https://github.com/rustyrazorblade/cassandra-builds/releases/download/nightly/apache-cassandra-5.0-HEAD-bin.tar.gz
+  java: "17"
   python: "3.11.9"
 ```
 
-Or, for one of the nightly-tracked branches, use the stable `nightly` URL so
-it always resolves to the latest build without editing the pin.
+For an untracked ref, take the URL from the run summary of the build you want.
+That URL is good only until the next build of the same ref, which deletes the
+release and attaches a tarball under a new filename. To pin a ref for longer,
+add it to the nightly matrix.
 
 ## Image assembly
 
