@@ -15,11 +15,14 @@ name: Build Cassandra Ref
 #
 # These are ephemeral dev builds: ONE release/tag per ref (named after the
 # ref itself, e.g. `cassandra-6.0-rustyrazorblade`), deleted and recreated on
-# every run, so there is exactly one permanent download URL per branch — never
-# a growing pile of per-build tags. This repo exists specifically so that tag
-# lands HERE, on a repo whose entire purpose is hosting Cassandra build
-# artifacts — not on a consumer repo whose own git tag namespace it would
-# otherwise pollute.
+# every run, so a ref keeps one release instead of a growing pile of per-build
+# tags. This repo exists specifically so that tag lands HERE, on a repo whose
+# entire purpose is hosting Cassandra build artifacts — not on a consumer repo
+# whose own git tag namespace it would otherwise pollute.
+#
+# The release TAG is stable, but the tarball filename still embeds the short
+# sha, so the per-ref download URL changes every build. Pin a `nightly` URL
+# (build-cassandra-set.yml) if you need one that does not move.
 #
 # `latest` is never produced here — it has no meaning for a from-source dev
 # build and would collide with any downstream image using it for something else.
@@ -451,8 +454,9 @@ jobs:
       # resolve-build-plan.sh), not unique per build. Delete any existing
       # release+tag at that name first, same pattern build-cassandra-set.yml
       # uses for the `nightly` release, so every tracked branch/ref keeps
-      # exactly ONE permanent release and download URL instead of a new
-      # tag piling up on every run.
+      # exactly ONE release instead of a new tag piling up on every run.
+      # This deletes the previous run's tarball asset too; the replacement
+      # carries a different sha in its filename, so URLs here do not survive.
       - name: Delete existing release and tag for this ref
         continue-on-error: true
         env:

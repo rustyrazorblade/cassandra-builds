@@ -60,7 +60,9 @@ Put new decision logic in one of these functions with a test.  Do not add it inl
 
 ### Publishing model
 
-Every release in this repo is moving, not additive.  Both workflows delete the release and its tag, then recreate it.  A per-ref build owns exactly one release, named after the sanitized ref.  The nightly job owns the `nightly` release.  The result is one permanent download URL per branch.
+Every release in this repo is moving, not additive.  Both workflows delete the release and its tag, then recreate it.  A per-ref build owns exactly one release, named after the sanitized ref.  The nightly job owns the `nightly` release.
+
+Only the `nightly` URLs are stable.  A per-ref release has a stable tag, but `tarball_name` still embeds the short SHA, so the asset filename changes on every build.  The nightly aggregation job is what renames each tarball to drop the SHA.  Do not describe the per-ref URL as permanent.
 
 The image gets a moving `:<ref_tag>` tag, and a stable version tag such as `:5.0-HEAD` when a matrix caller passes `stable_version`.
 
