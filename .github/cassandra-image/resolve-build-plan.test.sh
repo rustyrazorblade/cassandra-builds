@@ -122,9 +122,12 @@ assert_fails "ref resolving to latest is rejected" \
 assert_field "sha tag from short sha" sha_tag sha-abc123def456 "${BASE_ENV[@]}"
 assert_field "tarball name embeds version + sha" tarball_name \
   apache-cassandra-5.0.3-abc123def456-bin.tar.gz "${BASE_ENV[@]}"
-assert_field "release tag embeds version + sha" release_tag \
-  cassandra-5.0.3-abc123def456 "${BASE_ENV[@]}"
-# Distinct short SHAs must produce distinct artifacts (no silent overwrite).
+assert_field "release tag equals ref tag (stable, not per-sha)" release_tag \
+  cassandra-5.0 "${BASE_ENV[@]}"
+# Distinct short SHAs must produce distinct tarball/sha artifacts (no silent
+# overwrite of the build outputs), but release_tag must stay THE SAME across
+# builds of the same ref — that stability is the whole point: one permanent
+# release URL per branch, not a new one every build.
 plan_a="$(env VERSION=5.0.3 SHORT_SHA=aaaaaaaaaaaa SOURCE_REF=trunk JDK_OVERRIDE= \
   BASE_IMAGE_OVERRIDE= REPO_OWNER=o REPO_NAME=r \
   bash -c "source '${SCRIPT_DIR}/resolve-build-plan.sh'; compute_build_plan")"
@@ -132,12 +135,12 @@ plan_b="$(env VERSION=5.0.3 SHORT_SHA=bbbbbbbbbbbb SOURCE_REF=trunk JDK_OVERRIDE
   BASE_IMAGE_OVERRIDE= REPO_OWNER=o REPO_NAME=r \
   bash -c "source '${SCRIPT_DIR}/resolve-build-plan.sh'; compute_build_plan")"
 tests_run=$((tests_run + 1))
-if [[ "$(field release_tag "$plan_a")" != "$(field release_tag "$plan_b")" \
-  && "$(field tarball_name "$plan_a")" != "$(field tarball_name "$plan_b")" \
-  && "$(field sha_tag "$plan_a")" != "$(field sha_tag "$plan_b")" ]]; then
-  echo "ok   - distinct short SHAs yield distinct artifacts"
+if [[ "$(field tarball_name "$plan_a")" != "$(field tarball_name "$plan_b")" \
+  && "$(field sha_tag "$plan_a")" != "$(field sha_tag "$plan_b")" \
+  && "$(field release_tag "$plan_a")" == "$(field release_tag "$plan_b")" ]]; then
+  echo "ok   - distinct short SHAs yield distinct build artifacts but a stable release_tag"
 else
-  echo "FAIL - distinct short SHAs collided"
+  echo "FAIL - distinct short SHAs did not behave as expected"
   tests_failed=$((tests_failed + 1))
 fi
 

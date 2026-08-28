@@ -6,17 +6,20 @@ name: Build Cassandra Ref
 #   1. A GHCR Docker image that is a drop-in for the Docker Official `cassandra`
 #      image (same docker-entrypoint.sh contract, CASSANDRA_* env vars, ports,
 #      and /var/lib/cassandra volume) — see .github/cassandra-image/.
-#   2. A binary tarball attached to a per-build GitHub release on THIS repo,
-#      consumable by anything that wants a pinned URL (e.g. easy-db-lab's
+#   2. A binary tarball attached to a GitHub release on THIS repo, consumable
+#      by anything that wants a pinned URL (e.g. easy-db-lab's
 #      cassandra_versions.yaml + install_cassandra.sh).
 #
 # Three sequential jobs make "build fails -> nothing published" structural:
 #   resolve -> build -> publish (publish needs both).
 #
-# This repo exists specifically so these per-build tags/releases (one per
-# build, named `cassandra-<version>-<sha>`) land HERE, on a repo whose entire
-# purpose is hosting Cassandra build artifacts — not on a consumer repo whose
-# own git tag namespace they'd otherwise pollute.
+# These are ephemeral dev builds: ONE release/tag per ref (named after the
+# ref itself, e.g. `cassandra-6.0-rustyrazorblade`), deleted and recreated on
+# every run, so there is exactly one permanent download URL per branch — never
+# a growing pile of per-build tags. This repo exists specifically so that tag
+# lands HERE, on a repo whose entire purpose is hosting Cassandra build
+# artifacts — not on a consumer repo whose own git tag namespace it would
+# otherwise pollute.
 #
 # `latest` is never produced here — it has no meaning for a from-source dev
 # build and would collide with any downstream image using it for something else.
@@ -90,14 +93,14 @@ on:
         description: 'Filename of the built binary tarball (apache-cassandra-<version>-<sha>-bin.tar.gz).'
         value: ${{ jobs.resolve.outputs.tarball_name }}
       release_tag:
-        description: 'Per-build GitHub release tag (on this repo) the tarball is attached to.'
+        description: 'Stable per-ref GitHub release tag (on this repo) the tarball is attached to. Equal to ref_tag; deleted and recreated on every run.'
         value: ${{ jobs.resolve.outputs.release_tag }}
       artifact_name:
         description: 'Name of the uploaded workflow artifact containing the tarball.'
         value: ${{ jobs.resolve.outputs.artifact_name }}
       image:
-        description: 'Immutable GHCR image reference (repo:sha-<short_sha>).'
-        value: ${{ jobs.resolve.outputs.image_repo }}:${{ jobs.resolve.outputs.sha_tag }}
+        description: 'Moving GHCR image reference for this ref (repo:ref_tag).'
+        value: ${{ jobs.resolve.outputs.image_repo }}:${{ jobs.resolve.outputs.ref_tag }}
 
 jobs:
   resolve:
@@ -310,11 +313,14 @@ jobs:
           set -euo pipefail
           # RFC-3339 UTC build timestamp for org.opencontainers.image.created.
           created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          # Always tag the immutable :sha-<short> and moving :<ref> tags. When a
-          # matrix caller supplies a stable_version, ADD a third stable tag
-          # (:5.0-HEAD / :6.0-HEAD / :trunk) so there is a stable pull URL that
-          # matches the tarball naming. Sanitize it with the SAME transform as
-          # ref_tag (tag-invalid chars -> '-', cap 128) for defensiveness; the
+          # SHA_TAG is a LOCAL-ONLY tag: it gives the smoke test below a
+          # concrete image to run, but it is never pushed to GHCR (these are
+          # ephemeral dev builds — nothing but the moving :<ref> tag, and the
+          # optional stable-version tag, gets published). When a matrix caller
+          # supplies a stable_version, ADD a third stable tag (:5.0-HEAD /
+          # :6.0-HEAD / :trunk) so there is a stable pull URL that matches the
+          # tarball naming. Sanitize it with the SAME transform as ref_tag
+          # (tag-invalid chars -> '-', cap 128) for defensiveness; the
           # 5.0-HEAD/6.0-HEAD/trunk values pass through unchanged. Guarded on
           # non-empty so direct/fork callers are completely unaffected.
           tag_args=(--tag "${IMAGE_REPO}:${SHA_TAG}" --tag "${IMAGE_REPO}:${REF_TAG}")
@@ -423,46 +429,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Push only after the smoke test passed.
+      # Push only after the smoke test passed. SHA_TAG is intentionally never
+      # pushed — see "Build image locally" above.
       - name: Push image
         env:
           IMAGE_REPO: ${{ needs.resolve.outputs.image_repo }}
-          SHA_TAG: ${{ needs.resolve.outputs.sha_tag }}
           REF_TAG: ${{ needs.resolve.outputs.ref_tag }}
           STABLE_VERSION: ${{ inputs.stable_version }}
         run: |
           set -euo pipefail
-          docker push "${IMAGE_REPO}:${SHA_TAG}"
           docker push "${IMAGE_REPO}:${REF_TAG}"
           # Also push the stable version tag when a matrix caller supplied one.
           # Same sanitization as the build step; guarded so direct/fork callers
-          # (empty STABLE_VERSION) push only :sha and :ref.
+          # (empty STABLE_VERSION) push only :ref.
           if [[ -n "$STABLE_VERSION" ]]; then
             version_tag="$(echo "$STABLE_VERSION" | sed 's/[^a-zA-Z0-9._-]/-/g' | cut -c1-128)"
             docker push "${IMAGE_REPO}:${version_tag}"
           fi
 
+      # release_tag is stable per ref (equal to ref_tag — see
+      # resolve-build-plan.sh), not unique per build. Delete any existing
+      # release+tag at that name first, same pattern build-cassandra-set.yml
+      # uses for the `nightly` release, so every tracked branch/ref keeps
+      # exactly ONE permanent release and download URL instead of a new
+      # tag piling up on every run.
+      - name: Delete existing release and tag for this ref
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: |
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag --repo "${{ github.repository }}" || true
+
       # Create the release only after the smoke test passed and the image pushed.
       # No repository/token override needed: this action defaults to the repo
       # the workflow runs in, which IS this artifact-hosting repo — that's the
       # whole point of having it live here instead of in a consumer repo.
-      - name: Create per-build release with tarball
+      - name: Create per-ref release with tarball
         id: release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.resolve.outputs.release_tag }}
-          name: "Cassandra ${{ needs.resolve.outputs.version }} (${{ needs.resolve.outputs.short_sha }})"
+          name: "Cassandra ${{ needs.resolve.outputs.version }} — ${{ inputs.ref }}"
           prerelease: true
           draft: false
           body: |
-            On-demand Apache Cassandra build.
+            On-demand Apache Cassandra build. This release is overwritten by
+            every new build of this ref — it always holds the most recent one.
 
             - **Source repo**: `${{ inputs.repo }}`
             - **Ref**: `${{ inputs.ref }}`
             - **Commit**: `${{ needs.resolve.outputs.sha }}`
             - **Version**: `${{ needs.resolve.outputs.version }}`
             - **Build JDK**: `${{ needs.resolve.outputs.build_jdk }}`
-            - **Image**: `${{ needs.resolve.outputs.image_repo }}:${{ needs.resolve.outputs.sha_tag }}`
+            - **Image**: `${{ needs.resolve.outputs.image_repo }}:${{ needs.resolve.outputs.ref_tag }}`
 
             These are development builds and should not be used in production.
           files: .github/cassandra-image/${{ needs.resolve.outputs.tarball_name }}
@@ -470,7 +490,6 @@ jobs:
       - name: Write run summary
         env:
           IMAGE_REPO: ${{ needs.resolve.outputs.image_repo }}
-          SHA_TAG: ${{ needs.resolve.outputs.sha_tag }}
           REF_TAG: ${{ needs.resolve.outputs.ref_tag }}
           STABLE_VERSION: ${{ inputs.stable_version }}
           VERSION: ${{ needs.resolve.outputs.version }}
@@ -487,8 +506,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Version | \`${VERSION}\` |"
             echo "| Commit | \`${SHA}\` |"
-            echo "| Image (immutable) | \`${IMAGE_REPO}:${SHA_TAG}\` |"
-            echo "| Image (ref) | \`${IMAGE_REPO}:${REF_TAG}\` |"
+            echo "| Image (ref, moving) | \`${IMAGE_REPO}:${REF_TAG}\` |"
             # Only present when a matrix caller supplied a stable_version.
             if [[ -n "$STABLE_VERSION" ]]; then
               version_tag="$(echo "$STABLE_VERSION" | sed 's/[^a-zA-Z0-9._-]/-/g' | cut -c1-128)"
@@ -496,5 +514,5 @@ jobs:
             fi
             echo "| Tarball | ${tarball_url} |"
             echo ""
-            echo "Pull: \`docker pull ${IMAGE_REPO}:${SHA_TAG}\`"
+            echo "Pull: \`docker pull ${IMAGE_REPO}:${REF_TAG}\`"
           } >> "$GITHUB_STEP_SUMMARY"

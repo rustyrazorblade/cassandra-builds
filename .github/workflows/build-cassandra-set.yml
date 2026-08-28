@@ -6,8 +6,9 @@ name: Build Cassandra Set
 # every entry gets:
 #   1. The correct per-version build JDK + runtime base image (auto-mapped in
 #      resolve-build-plan.sh: 5.0 -> JDK 17, 6.0/trunk -> JDK 21).
-#   2. BOTH artifacts — a GHCR container image (moving `:cassandra-<ref>` tag +
-#      immutable `:sha-<short>` tag) AND a per-sha tarball GitHub release.
+#   2. BOTH artifacts — a GHCR container image (moving `:cassandra-<ref>` tag)
+#      AND a tarball on a stable per-ref GitHub release, both overwritten on
+#      every run rather than accumulating.
 #
 # The aggregation job then republishes every entry's tarball, renamed to the
 # stable convention, onto the moving `nightly` GitHub release, so downstream

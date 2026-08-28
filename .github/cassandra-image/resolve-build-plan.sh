@@ -89,9 +89,14 @@ compute_build_plan() {
   repo_lc="$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')"
   image_repo="ghcr.io/${owner_lc}/${repo_lc}/cassandra"
 
+  # release_tag is the STABLE per-ref release/tag name — deliberately equal to
+  # ref_tag, not unique per sha. The publish job deletes and recreates this
+  # release every run (same pattern as the nightly release), so each tracked
+  # branch/ref gets exactly one permanent download URL instead of a new
+  # tag+release piling up on every build.
   local tarball_name release_tag
   tarball_name="apache-cassandra-${version}-${short_sha}-bin.tar.gz"
-  release_tag="cassandra-${version}-${short_sha}"
+  release_tag="${ref_tag}"
 
   echo "version=${version}"
   echo "build_jdk=${build_jdk}"
